@@ -124,3 +124,34 @@ button:hover { background: white; color: black; transform: translate(2px, 2px); 
     pointer-events: none; /* Stops it from interfering with clicks */
     animation: subtleFloat 4s ease-in-out infinite;
 }
+/* MOBILE RESPONSIVENESS */
+@media (max-width: 768px) {
+    .game-container { padding: 10px; max-width: 100%; }
+    
+    header { flex-direction: column; gap: 15px; margin-bottom: 15px; padding-bottom: 10px; }
+    h1 { font-size: 24px; text-align: center; }
+    
+    .stats-panel { gap: 10px; padding: 10px; font-size: 8px; margin: 0; width: 100%; justify-content: space-between; }
+    .controls { width: 100%; justify-content: center; gap: 10px; }
+    
+    button { padding: 10px; font-size: 9px; }
+    #music-btn { font-size: 20px; padding: 5px 10px; }
+    .btn-icon { font-size: 16px; }
+
+    .board { gap: 15px; }
+    .deck-area, .foundation-area, .tableau-area { gap: 5px; justify-content: space-between; width: 100%; }
+    
+    /* Dynamic Card Sizing for Mobile using Viewport Width (vw) */
+    .pile { width: 13vw; height: 19vw; border-width: 1px; }
+    .card { width: 13vw; height: 19vw; padding: 2px; border-radius: 4px; box-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
+    
+    .card-top, .card-bottom { font-size: 10px; }
+    .card-top span:nth-child(2), .card-bottom span:nth-child(2) { font-size: 8px !important; }
+    .card-suit-large { font-size: 24px; }
+    .face-img { font-size: 24px; }
+    
+    .foundation::after, .stock-pile::after { font-size: 20px; }
+    
+    /* Adjust vertical stacking distance for smaller cards */
+    .tableau .card { top: 0 !important; } /* We will handle the dynamic offset in JS */
+}

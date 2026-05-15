@@ -4,8 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTheme = 'theme-green';
     let musicEnabled = true;
 
-    // Undo State Tracking (Now Infinite)
     let undoStack = [];
+    let undosLeft = 5;
 
     const backgroundImages = [
         'https://picsum.photos/id/111/200/300', 
@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const undoBtn = document.getElementById('undo-btn');
     const endOverlay = document.getElementById('end-overlay');
 
+    // MOBILE TAP-TO-MOVE STATE
+    let tappedCards = null;
+    let tappedSourcePile = null;
+
     // --- AUDIO SYSTEM ---
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -39,9 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function playGameMusic() {
         if (!audioCtx || !musicEnabled) return;
         stopGameMusic();
-        
         const freqs = [130.81, 164.81, 196.00, 246.94]; 
-        
         freqs.forEach((freq, index) => {
             const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
             osc.type = 'sine'; osc.frequency.value = freq;
@@ -123,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.6);
     }
 
-    // --- CURSOR EFFECTS ---
+    // --- CURSOR EFFECTS (Disabled on touch devices automatically by CSS hover rules generally, but kept for desktop) ---
     const cursorGlow = document.getElementById('cursor-glow');
     document.addEventListener('mousemove', (e) => { cursorGlow.style.left = `${e.clientX}px`; cursorGlow.style.top = `${e.clientY}px`; });
     document.addEventListener('mousedown', () => cursorGlow.style.transform = 'translate(-50%, -50%) scale(0.8)' );
@@ -216,9 +218,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startGame() {
         gameStarted = true; timeSeconds = 0; score = 0; shuffleCount = 0;
-        undoStack = []; 
-        undoBtn.innerHTML = `<span class="btn-icon">↩️</span> UNDO`; 
-        undoBtn.style.opacity = '0.5'; // Dimmed initially
+        
+        undoStack = []; undosLeft = 5; 
+        undoBtn.innerHTML = `<span class="btn-icon">↩️</span> UNDO (5)`; undoBtn.style.opacity = '1';
 
         currentDeckImage = backgroundImages[Math.floor(Math.random() * backgroundImages.length)];
         initBoard(); 
@@ -235,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveState() {
-        if (undoStack.length >= 50) undoStack.shift(); // Keep up to 50 undos in memory
+        if (undoStack.length >= 20) undoStack.shift(); 
         undoStack.push({
             stockHTML: stock.innerHTML,
             wasteHTML: waste.innerHTML,
@@ -244,28 +246,40 @@ document.addEventListener('DOMContentLoaded', () => {
             score: score,
             shuffleCount: shuffleCount
         });
-        undoBtn.style.opacity = '1';
     }
 
     undoBtn.addEventListener('click', () => {
-        if (undoStack.length === 0 || !gameStarted) return;
+        if (undosLeft <= 0 || undoStack.length === 0 || !gameStarted) return;
         const state = undoStack.pop();
+        undosLeft--;
         
-        stock.innerHTML = state.stockHTML;
-        waste.innerHTML = state.wasteHTML;
+        stock.innerHTML = state.stockHTML; waste.innerHTML = state.wasteHTML;
         document.querySelectorAll('.foundation').forEach((f, i) => f.innerHTML = state.foundationsHTML[i]);
         document.querySelectorAll('.tableau').forEach((t, i) => t.innerHTML = state.tableausHTML[i]);
         
-        score = state.score;
-        shuffleCount = state.shuffleCount;
+        score = state.score; shuffleCount = state.shuffleCount;
+        scoreEl.innerText = score; updateStatsUI(); updateProbability();
         
-        scoreEl.innerText = score;
-        updateStatsUI();
-        updateProbability();
+        // Ensure dynamic spacing is reapplied after DOM replacement
+        applyDynamicSpacing();
         updateDraggableState();
         
-        if (undoStack.length === 0) undoBtn.style.opacity = '0.5';
+        undoBtn.innerHTML = `<span class="btn-icon">↩️</span> UNDO (${undosLeft})`;
+        if (undosLeft === 0) undoBtn.style.opacity = '0.5';
     });
+
+    // Calculates CSS top property dynamically based on screen size for mobile support
+    function applyDynamicSpacing() {
+        const isMobile = window.innerWidth <= 768;
+        const offset = isMobile ? 15 : 25; // 15px stacking on mobile, 25px on desktop
+        
+        document.querySelectorAll('.tableau').forEach(pile => {
+            Array.from(pile.children).forEach((card, idx) => {
+                card.style.top = `${idx * offset}px`;
+                card.style.zIndex = idx;
+            });
+        });
+    }
 
     function initBoard() {
         deck = [];
@@ -278,28 +292,26 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let j = 0; j <= i; j++) {
                 const cardData = deck[cardIndex]; cardData.faceUp = (j === i);
                 const cardEl = createCardElement(cardData);
-                cardEl.style.top = `${j * 25}px`; cardEl.style.zIndex = j;
                 tableauPile.appendChild(cardEl); cardIndex++;
             }
         }
         for (let i = cardIndex; i < deck.length; i++) stock.appendChild(createCardElement(deck[i]));
+        
+        applyDynamicSpacing();
         updateDraggableState();
     }
+
+    window.addEventListener('resize', applyDynamicSpacing); // Adjust spacing if screen rotates
 
     function updateStatsUI() { shufflesEl.innerText = shuffleCount; }
     
     function updateProbability() {
         if (!gameStarted) return; 
-        
-        let foundations = 0; 
-        document.querySelectorAll('.foundation .card').forEach(() => foundations++);
-
-        let hiddenCards = 0;
-        document.querySelectorAll('.tableau .card.back').forEach(() => hiddenCards++);
+        let foundations = 0; document.querySelectorAll('.foundation .card').forEach(() => foundations++);
+        let hiddenCards = 0; document.querySelectorAll('.tableau .card.back').forEach(() => hiddenCards++);
 
         let revealedProgress = ((21 - hiddenCards) / 21) * 40;
         let foundationProgress = (foundations / 52) * 60;
-        
         let prob = revealedProgress + foundationProgress - (shuffleCount * 2) - Math.floor(timeSeconds / 120); 
 
         prob = Math.max(1, Math.min(99, Math.floor(prob)));
@@ -307,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         probEl.innerText = `${prob}%`;
         probEl.style.color = prob < 30 ? '#e74c3c' : (prob >= 90 ? '#2ecc71' : '#f1c40f');
-        
         checkWinFailState(foundations);
     }
 
@@ -343,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProbability();
     }
 
-    // --- SMART HINT ENGINE ---
+    // --- HINT ENGINE ---
     hintBtn.addEventListener('click', () => {
         const hasMoves = findAnyHintMove(true);
         if (!hasMoves) { endGame("NO MOVES LEFT", "#e74c3c"); }
@@ -353,63 +364,44 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.hint-glow').forEach(el => el.classList.remove('hint-glow'));
         let potentialMoves = [];
 
-        // 1. Scan Tableau
         document.querySelectorAll('.tableau').forEach(sourcePile => {
             const faceUpCards = Array.from(sourcePile.querySelectorAll('.card:not(.back)'));
             if (faceUpCards.length > 0) {
-                
-                // Top Card to Foundation (Priority 1)
                 const topFaceUp = faceUpCards[faceUpCards.length - 1];
                 document.querySelectorAll('.foundation').forEach(targetPile => {
-                    if (canMoveToFoundation(topFaceUp, targetPile)) {
-                        potentialMoves.push({ source: topFaceUp, target: targetPile, priority: 1 });
-                    }
+                    if (canMoveToFoundation(topFaceUp, targetPile)) { potentialMoves.push({ source: topFaceUp, target: targetPile, priority: 1 }); }
                 });
 
-                // Deepest Face-Up Card to another Tableau (Priority 2 or 5)
                 const bottomFaceUp = faceUpCards[0];
                 document.querySelectorAll('.tableau').forEach(targetPile => {
                     if (sourcePile !== targetPile && canMoveToTableau(bottomFaceUp, targetPile)) {
                         const revealsHiddenCard = sourcePile.children.length > faceUpCards.length;
                         const isKingToEmpty = valueMap[bottomFaceUp.dataset.value] === 13 && targetPile.children.length === 0;
 
-                        if (revealsHiddenCard || (isKingToEmpty && revealsHiddenCard)) {
-                            potentialMoves.push({ source: bottomFaceUp, target: targetPile, priority: 2 }); // Helpful move
-                        } else if (!isKingToEmpty) {
-                            potentialMoves.push({ source: bottomFaceUp, target: targetPile, priority: 5 }); // Meaningless lateral move
-                        }
+                        if (revealsHiddenCard || (isKingToEmpty && revealsHiddenCard)) { potentialMoves.push({ source: bottomFaceUp, target: targetPile, priority: 2 }); 
+                        } else if (!isKingToEmpty) { potentialMoves.push({ source: bottomFaceUp, target: targetPile, priority: 5 }); }
                     }
                 });
             }
         });
 
-        // 2. Scan Waste (Priority 3 & 4)
         const wCard = waste.lastElementChild;
         if (wCard) {
-            document.querySelectorAll('.foundation').forEach(target => {
-                if (canMoveToFoundation(wCard, target)) potentialMoves.push({ source: wCard, target: target, priority: 3 });
-            });
-            document.querySelectorAll('.tableau').forEach(target => {
-                if (canMoveToTableau(wCard, target)) potentialMoves.push({ source: wCard, target: target, priority: 4 });
-            });
+            document.querySelectorAll('.foundation').forEach(target => { if (canMoveToFoundation(wCard, target)) potentialMoves.push({ source: wCard, target: target, priority: 3 }); });
+            document.querySelectorAll('.tableau').forEach(target => { if (canMoveToTableau(wCard, target)) potentialMoves.push({ source: wCard, target: target, priority: 4 }); });
         }
 
-        // Evaluate Best Move
         if (potentialMoves.length > 0) {
             potentialMoves.sort((a, b) => a.priority - b.priority);
             let bestMove = potentialMoves[0];
-            
-            // If the only moves left are "meaningless" (Priority 5), we should suggest drawing a card instead IF possible
-            if (bestMove.priority === 5 && (stock.children.length > 0 || waste.children.length > 0)) {
-                // Fallthrough to stock draw below
-            } else {
+            if (bestMove.priority === 5 && (stock.children.length > 0 || waste.children.length > 0)) { /* Fallthrough */ } 
+            else {
                 if(showVisuals) { bestMove.source.classList.add('hint-glow'); bestMove.target.classList.add('hint-glow'); }
                 if(showVisuals) setTimeout(() => document.querySelectorAll('.hint-glow').forEach(el => el.classList.remove('hint-glow')), 2000);
                 return true;
             }
         }
 
-        // 3. Fallback: Suggest Drawing/Recycling
         if (stock.children.length > 0 || waste.children.length > 0) {
             if(showVisuals) {
                 if (stock.children.length > 0) document.getElementById('stock').classList.add('hint-glow');
@@ -422,14 +414,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return false;
     }
 
-    // --- CARD RENDERING ---
     function renderCardInner(c, val, suit) {
         const sym = { 'hearts':'♥', 'diamonds':'♦', 'clubs':'♣', 'spades':'♠' }[suit];
         let centerGraphic = `<div class="card-suit-large">${sym}</div>`;
         if(val === 'J') centerGraphic = `<div class="face-img">💂</div>`;
         if(val === 'Q') centerGraphic = `<div class="face-img">👸</div>`;
         if(val === 'K') centerGraphic = `<div class="face-img">🤴</div>`;
-        c.innerHTML = `<div class="card-top"><span>${val}</span><span style="font-size: 14px;">${sym}</span></div>${centerGraphic}<div class="card-bottom"><span>${val}</span><span style="font-size: 14px;">${sym}</span></div>`;
+        c.innerHTML = `<div class="card-top"><span>${val}</span><span>${sym}</span></div>${centerGraphic}<div class="card-bottom"><span>${val}</span><span>${sym}</span></div>`;
     }
 
     function createCardElement(cardData) {
@@ -438,9 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.dataset.color = (cardData.suit === 'hearts' || cardData.suit === 'diamonds') ? 'red' : 'black';
         
         if (!cardData.faceUp) { 
-            card.classList.add('back');
-            card.style.backgroundImage = `url('${currentDeckImage}')`;
-            card.setAttribute('draggable', 'false'); 
+            card.classList.add('back'); card.style.backgroundImage = `url('${currentDeckImage}')`; card.setAttribute('draggable', 'false'); 
         } else {
             card.classList.add(card.dataset.color); card.style.background = 'white';
             renderCardInner(card, cardData.value, cardData.suit); card.setAttribute('draggable', 'true');
@@ -462,16 +451,99 @@ document.addEventListener('DOMContentLoaded', () => {
         return drag.dataset.color !== top.dataset.color && valueMap[drag.dataset.value] === valueMap[top.dataset.value] - 1;
     }
     function canMoveToFoundation(drag, target) {
-        if (draggedCards.length > 1) return false;
+        if (draggedCards.length > 1) return false; // Can only move one card to foundation
         const top = target.lastElementChild;
         if (!top) return valueMap[drag.dataset.value] === 1 && drag.dataset.suit === target.dataset.suit;
         return drag.dataset.suit === target.dataset.suit && valueMap[drag.dataset.value] === valueMap[top.dataset.value] + 1;
     }
 
-    // --- DRAG EVENTS ---
+    // --- EXECUTE MOVE LOGIC (Shared between Drag and Tap) ---
+    function executeMove(cardsToMove, sPile, tPile) {
+        saveState();
+        
+        if (tPile.classList.contains('tableau')) {
+            // Apply dynamic spacing when appending to tableau
+            cardsToMove.forEach((card) => { tPile.appendChild(card); });
+            applyDynamicSpacing(); // Re-calculate spacing
+        } else if (tPile.classList.contains('foundation')) {
+            cardsToMove[0].style.top = '0px'; cardsToMove[0].style.zIndex = tPile.children.length; tPile.appendChild(cardsToMove[0]);
+            updateScore(10, false); 
+        }
+
+        playCoinSound(); 
+
+        if (sPile.classList.contains('tableau') && sPile.children.length > 0) {
+            const topSource = sPile.lastElementChild;
+            if (topSource.classList.contains('back')) {
+                topSource.classList.remove('back'); topSource.classList.add(topSource.dataset.color);
+                topSource.style.backgroundImage = 'none'; topSource.style.background = 'white';
+                renderCardInner(topSource, topSource.dataset.value, topSource.dataset.suit);
+                topSource.style.animationDelay = `${Math.random()}s`; updateScore(5, false);
+            }
+        }
+        updateDraggableState(); updateProbability();
+    }
+
+    // --- MOBILE TAP-TO-MOVE SUPPORT ---
     const board = document.querySelector('.board');
+    
+    board.addEventListener('click', (e) => {
+        if (!gameStarted) return;
+        
+        const cardEl = e.target.closest('.card');
+        const pileEl = e.target.closest('.pile');
+
+        // Ignore clicks on stock/waste unless it's the actual draw interaction handled below
+        if (pileEl && (pileEl.id === 'stock' || pileEl.id === 'waste')) return;
+
+        // 1. Select a card
+        if (!tappedCards) {
+            if (cardEl && !cardEl.classList.contains('back')) {
+                tappedSourcePile = cardEl.parentElement;
+                
+                if (tappedSourcePile.classList.contains('tableau')) {
+                    const children = Array.from(tappedSourcePile.children);
+                    tappedCards = children.slice(children.indexOf(cardEl));
+                } else {
+                    tappedCards = [cardEl]; // Can only pick top card from foundation/waste
+                    // Prevent picking non-top cards from waste/foundation
+                    if (cardEl !== tappedSourcePile.lastElementChild) { tappedCards = null; return; }
+                }
+                
+                // Highlight selection visually
+                tappedCards.forEach(c => c.style.boxShadow = '0 0 20px #f1c40f');
+            }
+        } 
+        // 2. Drop a card
+        else {
+            const targetPile = pileEl || (cardEl ? cardEl.parentElement : null);
+            
+            if (targetPile && targetPile !== tappedSourcePile) {
+                let isValid = false;
+                if (targetPile.classList.contains('tableau') && canMoveToTableau(tappedCards[0], targetPile)) isValid = true;
+                else if (targetPile.classList.contains('foundation') && canMoveToFoundation(tappedCards[0], targetPile)) isValid = true;
+
+                if (isValid) {
+                    executeMove(tappedCards, tappedSourcePile, targetPile);
+                } else {
+                    playErrorSound();
+                }
+            }
+            
+            // Clear selection
+            tappedCards.forEach(c => c.style.boxShadow = '3px 3px 0 rgba(0,0,0,0.6)'); // Restore original shadow
+            tappedCards = null; tappedSourcePile = null;
+        }
+    });
+
+
+    // --- DESKTOP DRAG EVENTS ---
     board.addEventListener('dragstart', (e) => {
         if (e.target.classList.contains('back') || e.target.getAttribute('draggable') === 'false') { e.preventDefault(); return; }
+        
+        // Clear any mobile taps if mouse dragging starts
+        if(tappedCards) { tappedCards.forEach(c => c.style.boxShadow = '3px 3px 0 rgba(0,0,0,0.6)'); tappedCards = null; }
+
         sourcePile = e.target.parentElement;
         if (sourcePile.classList.contains('tableau')) {
             const children = Array.from(sourcePile.children);
@@ -500,43 +572,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (draggedCards.length === 0 || pile === sourcePile || pile.classList.contains('stock-pile')) return;
 
             let isValidDrop = false;
-            if (pile.classList.contains('tableau') && canMoveToTableau(draggedCards[0], pile)) {
-                isValidDrop = true;
-            } else if (pile.classList.contains('foundation') && canMoveToFoundation(draggedCards[0], pile)) {
-                isValidDrop = true;
-            }
+            if (pile.classList.contains('tableau') && canMoveToTableau(draggedCards[0], pile)) isValidDrop = true;
+            else if (pile.classList.contains('foundation') && canMoveToFoundation(draggedCards[0], pile)) isValidDrop = true;
 
             if (isValidDrop) {
-                saveState(); // Commit to history before moving
-
-                if (pile.classList.contains('tableau')) {
-                    const existingCount = pile.children.length;
-                    draggedCards.forEach((card, idx) => { card.style.top = `${(existingCount + idx) * 25}px`; card.style.zIndex = existingCount + idx; pile.appendChild(card); });
-                } else if (pile.classList.contains('foundation')) {
-                    draggedCards[0].style.top = '0px'; draggedCards[0].style.zIndex = pile.children.length; pile.appendChild(draggedCards[0]);
-                    updateScore(10, false); 
-                }
-
-                playCoinSound(); 
-
-                if (sourcePile.classList.contains('tableau') && sourcePile.children.length > 0) {
-                    const topSource = sourcePile.lastElementChild;
-                    if (topSource.classList.contains('back')) {
-                        topSource.classList.remove('back'); topSource.classList.add(topSource.dataset.color);
-                        topSource.style.backgroundImage = 'none'; topSource.style.background = 'white';
-                        renderCardInner(topSource, topSource.dataset.value, topSource.dataset.suit);
-                        topSource.style.animationDelay = `${Math.random()}s`; updateScore(5, false);
-                    }
-                }
-                updateDraggableState(); updateProbability();
+                executeMove(draggedCards, sourcePile, pile);
             } else {
                 playErrorSound();
             }
         });
     });
 
+    // --- STOCK / WASTE LOGIC ---
     stock.addEventListener('click', () => {
         if (!gameStarted) return;
+        
+        // Clear mobile selections
+        if(tappedCards) { tappedCards.forEach(c => c.style.boxShadow = '3px 3px 0 rgba(0,0,0,0.6)'); tappedCards = null; }
+        
         playDrawSound();
 
         if (stock.children.length === 0) {
