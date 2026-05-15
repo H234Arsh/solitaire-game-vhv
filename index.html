@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solitaire Arcade Edition</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="dynamic-bg" class="theme-green">
+        <div id="bg-effects"></div>
+    </div>
+    <div id="cursor-glow"></div>
+
+    <!-- Start Overlay -->
+    <div id="start-overlay" class="overlay">
+        <div class="overlay-content" id="theme-selection">
+            <h2>PICK YOUR AESTHETIC.</h2>
+            <div class="theme-grid">
+                <button class="theme-btn" data-theme="theme-green">Emerald Felt</button>
+                <button class="theme-btn" data-theme="theme-space">Deep Space</button>
+                <button class="theme-btn" data-theme="theme-snow">Winter Snow</button>
+                <button class="theme-btn" data-theme="theme-treasure">Treasure Vault</button>
+            </div>
+        </div>
+        <div class="overlay-content" id="start-prompt" style="display: none;">
+            <h2>READY PLAYER ONE?</h2>
+            <button id="start-btn">START GAME</button>
+        </div>
+        <div class="creator-tag">COOKED UP by V Harsha Vardhan.
+            
+        </div>
+    </div>
+
+    <!-- End Game Overlay (Win/Fail) -->
+    <div id="end-overlay" class="overlay" style="display: none;">
+        <div class="overlay-content">
+            <h2 id="end-title" style="font-size: 30px; color: #f1c40f;">YOU WON!</h2>
+            <p style="margin: 20px 0; font-size: 14px;">FINAL SCORE: <span id="end-score">0</span></p>
+            <p style="margin: 20px 0; font-size: 12px; color: #aaa;">SHUFFLES: <span id="end-shuffles">0</span></p>
+            <button id="play-again-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <header>
+            <h1 class="floating-ui">SOLITAIRE</h1>
+            
+            <div class="stats-panel floating-ui" style="animation-delay: 0.5s;">
+                <div class="stat-box">TIME: <br><span id="timer">00:00</span></div>
+                <div class="stat-box">SCORE: <br><span id="score">0</span></div>
+                <div class="stat-box">SHUFFLES: <br><span id="shuffles">0</span></div>
+                <div class="stat-box" style="color: #f1c40f;">PROB: <br><span id="prob">15%</span></div>
+            </div>
+
+            <div class="controls floating-ui" style="animation-delay: 1s;">
+                <button id="music-btn" title="Toggle Music">🔊</button>
+                <button id="undo-btn" title="Undo Move" style="color: #f39c12; border-color: #f39c12;"><span class="btn-icon">↩️</span> UNDO</button>
+                <button id="hint-btn" title="Get a Hint" style="color: #ff9ff3; border-color: #ff9ff3;"><span class="btn-icon">💡</span> HINT</button>
+                <button id="new-game-btn">RESTART</button>
+            </div>
+        </header>
+
+        <div class="board">
+            <div class="top-section">
+                <div class="deck-area">
+                    <div id="stock" class="pile stock-pile"></div>
+                    <div id="waste" class="pile waste-pile"></div>
+                </div>
+                <div class="foundation-area">
+                    <div id="foundation-0" class="pile foundation" data-suit="hearts"></div>
+                    <div id="foundation-1" class="pile foundation" data-suit="diamonds"></div>
+                    <div id="foundation-2" class="pile foundation" data-suit="clubs"></div>
+                    <div id="foundation-3" class="pile foundation" data-suit="spades"></div>
+                </div>
+            </div>
+
+            <div class="tableau-area">
+                <div id="tableau-0" class="pile tableau"></div>
+                <div id="tableau-1" class="pile tableau"></div>
+                <div id="tableau-2" class="pile tableau"></div>
+                <div id="tableau-3" class="pile tableau"></div>
+                <div id="tableau-4" class="pile tableau"></div>
+                <div id="tableau-5" class="pile tableau"></div>
+                <div id="tableau-6" class="pile tableau"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
